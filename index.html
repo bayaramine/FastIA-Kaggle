@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mole Risk Classifier</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        h1 { color: #333; }
+        #drop-zone { border: 2px dashed #ccc; padding: 40px; text-align: center; cursor: pointer; border-radius: 10px; }
+        #drop-zone:hover { border-color: #666; }
+        #preview { max-width: 300px; margin: 20px auto; display: none; }
+        #result { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; }
+        .low { background: #d4edda; }
+        .moderate { background: #fff3cd; }
+        .high { background: #f8d7da; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🔬 Mole Risk Classifier</h1>
+    <p>Upload a mole image to assess cancer risk.</p>
+    <p><em>⚠️ This is not a medical diagnostic tool. Always consult a dermatologist.</em></p>
+
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+        📁 Click to upload a mole image
+        <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(event)">
+    </div>
+
+    <img id="preview" />
+    <button id="predict-btn" style="display:none" onclick="predict()">Analyse</button>
+    <div id="result"></div>
+
+    <script>
+        let base64Image = '';
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                base64Image = e.target.result;
+                document.getElementById('preview').src = base64Image;
+                document.getElementById('preview').style.display = 'block';
+                document.getElementById('predict-btn').style.display = 'block';
+                document.getElementById('result').style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function predict() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = '';
+            resultDiv.innerHTML = '⏳ Analysing...';
+
+            const response = await fetch('https://bayaramine-mole-risk-classifier.hf.space/api/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: [base64Image] })
+            });
+
+            const result = await response.json();
+            const risk = result.data[1];
+            const probs = result.data[0].confidences;
+            const malignant = probs.find(p => p.label === 'Malignant');
+
+            let cssClass = 'low';
+            if (risk.includes('HIGH')) cssClass = 'high';
+            else if (risk.includes('MODERATE')) cssClass = 'moderate';
+
+            resultDiv.className = cssClass;
+            resultDiv.innerHTML = `
+                <h3>${risk}</h3>
+                <p>Malignant probability: <strong>${(malignant.confidence * 100).toFixed(1)}%</strong></p>
+            `;
+        }
+    </script>
+</body>
+</html>
